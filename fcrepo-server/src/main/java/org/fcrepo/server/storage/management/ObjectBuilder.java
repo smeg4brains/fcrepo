@@ -17,8 +17,6 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
-
 import org.fcrepo.server.Context;
 import org.fcrepo.server.RecoveryContext;
 import org.fcrepo.server.Server;
@@ -38,6 +36,8 @@ import org.fcrepo.server.utilities.StreamUtility;
 import org.fcrepo.server.validation.DOValidator;
 import org.fcrepo.server.validation.DOValidatorImpl;
 import org.fcrepo.server.validation.ValidationUtility;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.fcrepo.common.Constants.FOXML1_0;
 import static org.fcrepo.common.Constants.FOXML1_0_LEGACY;
@@ -81,7 +81,7 @@ public class ObjectBuilder {
         m_pidNamespace = pidNamespace;
     }
 
-    private static final Logger LOG = Logger.getLogger(ObjectBuilder.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ObjectBuilder.class);
 
     /**
      * Populate a new object with given data.

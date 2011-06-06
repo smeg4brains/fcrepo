@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.log4j.Logger;
 import org.fcrepo.server.Context;
 import org.fcrepo.server.Module;
 import org.fcrepo.server.Server;
@@ -38,6 +37,8 @@ import org.fcrepo.server.storage.highlevel.HighlevelStorage;
 import org.fcrepo.server.storage.management.ObjectBuilder;
 import org.fcrepo.server.storage.translation.DOTranslator;
 import org.fcrepo.server.validation.DOValidator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 /**
@@ -91,7 +92,7 @@ public class DistributedDOManager
         implements DOManager {
 
     private static final Logger LOG =
-            Logger.getLogger(DistributedDOManager.class);
+            LoggerFactory.getLogger(DistributedDOManager.class);
 
     private PIDGenerator m_pidGenerator;
 

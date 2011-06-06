@@ -8,7 +8,6 @@ import java.io.InputStream;
 import java.util.Iterator;
 import java.util.Map;
 
-import org.apache.log4j.Logger;
 import org.fcrepo.server.Context;
 import org.fcrepo.server.Server;
 import org.fcrepo.server.errors.GeneralException;
@@ -25,6 +24,8 @@ import org.fcrepo.server.storage.types.BasicDigitalObject;
 import org.fcrepo.server.storage.types.Datastream;
 import org.fcrepo.server.storage.types.DigitalObject;
 import org.fcrepo.utilities.DateUtility;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Creates or fetches object from atomic storage providing a safe
@@ -37,7 +38,7 @@ import org.fcrepo.utilities.DateUtility;
 class DistributedObjectSource {
 
     private static final Logger LOG =
-            Logger.getLogger(DistributedObjectSource.class);
+            LoggerFactory.getLogger(DistributedObjectSource.class);
 
     private final DOTranslator m_translator;
 

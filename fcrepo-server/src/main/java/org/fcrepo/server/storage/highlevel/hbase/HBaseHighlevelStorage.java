@@ -14,8 +14,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
 
-import org.apache.log4j.Logger;
-
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
@@ -38,6 +36,8 @@ import org.fcrepo.server.storage.translation.DOTranslationUtility;
 import org.fcrepo.server.storage.translation.DOTranslator;
 import org.fcrepo.server.storage.types.Datastream;
 import org.fcrepo.server.storage.types.DigitalObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /*
  * TODO: be aware of versioning: throw exception if table doesn't accommodate
@@ -55,7 +55,7 @@ public class HBaseHighlevelStorage
     private String m_format = DEFAULT_FORMAT;
 
     private static final Logger LOG =
-            Logger.getLogger(HBaseHighlevelStorage.class);
+            LoggerFactory.getLogger(HBaseHighlevelStorage.class);
 
     private final ThreadLocal<HTable> m_table = new ThreadLocal<HTable>() {
 
