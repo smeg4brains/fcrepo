@@ -208,12 +208,13 @@ public class DistributedDOManager
         return new EmptyResult();
     }
 
+    @Override
     public DOWriter getIngestWriter(boolean cachedObjectRequired,
                                     Context context,
                                     InputStream in,
                                     String format,
                                     String encoding,
-                                    boolean newPid) throws ServerException {
+                                    String newPid) throws ServerException {
         if (cachedObjectRequired) {
             throw new InvalidContextException("A DOWriter is unavailable in a cached context.");
         }
@@ -224,7 +225,6 @@ public class DistributedDOManager
 
         return writer;
     }
-
     public String[] getNextPID(int numPIDs, String namespace)
             throws ServerException {
         if (numPIDs < 1) {

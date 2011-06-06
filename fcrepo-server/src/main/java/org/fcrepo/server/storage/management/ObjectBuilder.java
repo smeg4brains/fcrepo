@@ -106,7 +106,7 @@ public class ObjectBuilder {
                             InputStream in,
                             String format,
                             String encoding,
-                            boolean newPid) throws ServerException {
+                            String newPid) throws ServerException {
 
         DigitalObject obj = writer.getObject();
         try {
@@ -199,7 +199,7 @@ public class ObjectBuilder {
                             + e.getMessage());
                 }
             } else {
-                if (newPid) {
+                if (newPid == null || "new".equals(newPid)) {
                     LOG.debug("Client wants a new PID");
                     // yes... so do that, then set it in the obj.
                     String p = null;

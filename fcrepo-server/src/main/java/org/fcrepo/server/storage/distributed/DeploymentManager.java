@@ -1,7 +1,7 @@
 
-package fedora.server.storage.distributed;
+package org.fcrepo.server.storage.distributed;
 
-import fedora.server.storage.DOReader;
+import org.fcrepo.server.storage.DOReader;
 
 public interface DeploymentManager {
 

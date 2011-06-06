@@ -24,8 +24,7 @@ import org.fcrepo.server.storage.translation.DOTranslator;
 import org.fcrepo.server.storage.types.BasicDigitalObject;
 import org.fcrepo.server.storage.types.Datastream;
 import org.fcrepo.server.storage.types.DigitalObject;
-import org.fcrepo.server.utilities.DateUtility;
-
+import org.fcrepo.utilities.DateUtility;
 
 /**
  * Creates or fetches object from atomic storage providing a safe
