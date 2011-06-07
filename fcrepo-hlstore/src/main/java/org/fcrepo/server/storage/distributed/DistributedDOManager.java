@@ -32,10 +32,9 @@ import org.fcrepo.server.storage.ServiceDefinitionReader;
 import org.fcrepo.server.storage.ServiceDeploymentReader;
 import org.fcrepo.server.storage.SimpleServiceDefinitionReader;
 import org.fcrepo.server.storage.SimpleServiceDeploymentReader;
-import org.fcrepo.server.storage.highlevel.Atomic;
 import org.fcrepo.server.storage.highlevel.HighlevelStorage;
-import org.fcrepo.server.storage.management.ObjectBuilder;
 import org.fcrepo.server.storage.translation.DOTranslator;
+import org.fcrepo.server.storage.util.ObjectBuilder;
 import org.fcrepo.server.validation.DOValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,8 +70,8 @@ import org.slf4j.LoggerFactory;
  * <li>Secondary indexing services such as Field Search or the Resource Index
  * are currently disabled. TODO: implement as external services that are updated
  * asynchronously by messaging, or polling the data on their own.</li>
- * <li>{@link PIDManager} is a new interface for managing pid generation. In a
- * cluster of multiple Fedora instances, the <code>PIDManager</code>
+ * <li>In a
+ * cluster of multiple Fedora instances, the <code>PIDGenerator</code>
  * implementation will either have to coordinate pid generation amongst the
  * various fedora instance, or each instance will need to be individually
  * configured in some way that results in unique pids (e.g. using
@@ -209,7 +208,6 @@ public class DistributedDOManager
         return new EmptyResult();
     }
 
-    @Override
     public DOWriter getIngestWriter(boolean cachedObjectRequired,
                                     Context context,
                                     InputStream in,
@@ -226,6 +224,7 @@ public class DistributedDOManager
 
         return writer;
     }
+
     public String[] getNextPID(int numPIDs, String namespace)
             throws ServerException {
         if (numPIDs < 1) {

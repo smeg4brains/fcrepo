@@ -1,8 +1,10 @@
 
-package org.fcrepo.server.storage.highlevel;
+package org.fcrepo.server.storage.distributed;
 
 import org.fcrepo.server.errors.LowlevelStorageException;
 import org.fcrepo.server.errors.ObjectNotInLowlevelStorageException;
+import org.fcrepo.server.storage.highlevel.HighlevelStorage;
+import org.fcrepo.server.storage.highlevel.OutOfDateException;
 import org.fcrepo.server.storage.types.DigitalObject;
 
 /**

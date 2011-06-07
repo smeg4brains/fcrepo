@@ -20,7 +20,7 @@ import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
-import org.fcrepo.server.storage.highlevel.Atomic;
+import org.fcrepo.server.storage.distributed.Atomic;
 import org.fcrepo.server.storage.highlevel.HighlevelDigitalObject;
 import org.fcrepo.server.storage.highlevel.HighlevelStorage;
 import org.fcrepo.server.storage.highlevel.ManagedDatastreamComparator;

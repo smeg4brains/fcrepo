@@ -3,7 +3,7 @@
  * available online at http://fedora-commons.org/license/).
  */
 
-package org.fcrepo.server.storage.management;
+package org.fcrepo.server.storage.util;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
