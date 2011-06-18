@@ -1,6 +1,8 @@
 
 package org.fcrepo.server.storage.highlevel;
 
+import org.fcrepo.server.management.Management;
+import org.fcrepo.server.storage.ExternalContentManager;
 import org.fcrepo.server.storage.types.BasicDigitalObject;
 import org.fcrepo.server.storage.types.Datastream;
 import org.fcrepo.server.storage.types.DatastreamManagedContent;
@@ -23,9 +25,17 @@ public class HighlevelDigitalObject
 
     private final HighlevelStorage m_storage;
 
-    public HighlevelDigitalObject(HighlevelStorage store) {
+    private final Management m_mgmt;
+
+    private final ExternalContentManager m_ecm;
+
+    public HighlevelDigitalObject(HighlevelStorage store,
+                                  Management mgmt,
+                                  ExternalContentManager ecm) {
         super();
         m_storage = store;
+        m_mgmt = mgmt;
+        m_ecm = ecm;
     }
 
     @Override
@@ -36,7 +46,11 @@ public class HighlevelDigitalObject
 
     private Datastream wrap(Datastream d) {
         if (d instanceof DatastreamManagedContent) {
-            return new HighlevelDatastreamManagedContent(this, d, m_storage);
+            return new HighlevelDatastreamManagedContent(this,
+                                                         d,
+                                                         m_storage,
+                                                         m_mgmt,
+                                                         m_ecm);
         } else {
             return d;
         }

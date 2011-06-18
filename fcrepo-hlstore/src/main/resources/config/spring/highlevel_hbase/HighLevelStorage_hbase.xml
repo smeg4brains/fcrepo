@@ -14,6 +14,8 @@
 		<property name="HBaseRoot" value="file:///home/birkland/hadoop/data_hbase" />
 		<property name="HBaseTable" value="fedora" />
 		<property name="DOTranslator" ref="org.fcrepo.server.storage.translation.DOTranslator"/>
+		<property name="Management" ref="org.fcrepo.server.management.Management" />
+		<property name="ExternalContentManager" ref="org.fcrepo.server.storage.ExternalContentManager" />
 
 		<constructor-arg index="0">
 			<map />

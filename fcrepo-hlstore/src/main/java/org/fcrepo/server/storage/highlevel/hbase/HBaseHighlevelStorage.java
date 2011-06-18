@@ -26,6 +26,8 @@ import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
+import org.fcrepo.server.management.Management;
+import org.fcrepo.server.storage.ExternalContentManager;
 import org.fcrepo.server.storage.distributed.Atomic;
 import org.fcrepo.server.storage.highlevel.HighlevelDigitalObject;
 import org.fcrepo.server.storage.highlevel.HighlevelStorage;
@@ -37,6 +39,7 @@ import org.fcrepo.server.Module;
 import org.fcrepo.server.Server;
 import org.fcrepo.server.errors.LowlevelStorageException;
 import org.fcrepo.server.errors.ModuleInitializationException;
+import org.fcrepo.server.errors.ObjectNotInLowlevelStorageException;
 import org.fcrepo.server.errors.StreamIOException;
 import org.fcrepo.server.storage.translation.DOTranslationUtility;
 import org.fcrepo.server.storage.translation.DOTranslator;
@@ -64,6 +67,10 @@ public class HBaseHighlevelStorage
     private String m_root;
 
     private String m_master;
+
+    private Management m_mgmt;
+
+    private ExternalContentManager m_ecm;
 
     private static final Logger LOG = LoggerFactory
             .getLogger(HBaseHighlevelStorage.class);
@@ -129,6 +136,16 @@ public class HBaseHighlevelStorage
     @Required
     public void setDOTranslator(DOTranslator dot) {
         m_translator = dot;
+    }
+
+    @Required
+    public void setManagement(Management mgmt) {
+        m_mgmt = mgmt;
+    }
+
+    @Required
+    public void setExternalContentManager(ExternalContentManager ecm) {
+        m_ecm = ecm;
     }
 
     private static final String PROP_HBASE_ROOTDIR = "root";
@@ -208,6 +225,8 @@ public class HBaseHighlevelStorage
 
     public void add(DigitalObject obj) throws LowlevelStorageException {
 
+        LOG.info("add " + obj.getPid());
+
         /* Get newest timestamp. Last known is 0 */
         byte[] old_ts = NULL_BYTES;
         byte[] new_ts = getBytes(obj.getLastModDate().getTime());
@@ -249,12 +268,14 @@ public class HBaseHighlevelStorage
         SafeWrite write = new SafeWrite(pid, old_ts, new_ts, m_table.get());
         write.addStep(append);
         write.execute();
+        LOG.info("Added " + obj.getPid());
         showDatastreams(pid, "afterAdd");
     }
 
     public void update(DigitalObject oldVersion, DigitalObject newVersion)
             throws LowlevelStorageException {
 
+        LOG.info("update: " + oldVersion.getPid().toString());
         showDatastreams(newVersion.getPid(), "beforeUpdate");
         /* Get timestamps */
         byte[] new_ts = getBytes(newVersion.getLastModDate().getTime());
@@ -325,6 +346,7 @@ public class HBaseHighlevelStorage
 
     public DigitalObject readObject(String objectKey)
             throws LowlevelStorageException {
+        LOG.info("readObject: " + objectKey);
         Get obj = new Get(objectKey.getBytes());
         obj.addColumn(Family.OBJECT, Column.CONTENT);
         obj.addColumn(Family.OBJECT, Column.FORMAT);
@@ -332,6 +354,10 @@ public class HBaseHighlevelStorage
 
         try {
             Result row = m_table.get().get(obj);
+
+            if (row.isEmpty()) {
+                throw new ObjectNotInLowlevelStorageException(objectKey + " not found");
+            }
 
             /* If the format and encoding aren't in the table, use the defaults */
             byte[] encoding = row.getValue(Family.OBJECT, Column.ENCODING);
@@ -393,6 +419,7 @@ public class HBaseHighlevelStorage
     }
 
     public boolean exists(String pid) throws LowlevelStorageException {
+        LOG.info("exists: " + pid);
         try {
             return m_table.get().exists(new Get(pid.getBytes()));
         } catch (IOException e) {
@@ -402,6 +429,7 @@ public class HBaseHighlevelStorage
     }
 
     public void purge(String pid) throws LowlevelStorageException {
+        LOG.info("purge: " + pid);
         try {
             m_table.get().delete(new Delete(pid.getBytes()));
         } catch (IOException e) {
@@ -481,7 +509,7 @@ public class HBaseHighlevelStorage
                                       String format,
                                       String encoding)
             throws LowlevelStorageException {
-        DigitalObject obj = new HighlevelDigitalObject(this);
+        DigitalObject obj = new HighlevelDigitalObject(this, m_mgmt, m_ecm);
 
         try {
             m_translator.deserialize(new ByteArrayInputStream(foxmlContent),

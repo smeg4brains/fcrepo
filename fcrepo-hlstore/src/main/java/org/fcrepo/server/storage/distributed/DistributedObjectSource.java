@@ -12,6 +12,7 @@ import org.fcrepo.server.Context;
 import org.fcrepo.server.Server;
 import org.fcrepo.server.errors.GeneralException;
 import org.fcrepo.server.errors.ObjectIntegrityException;
+import org.fcrepo.server.errors.ObjectNotInLowlevelStorageException;
 import org.fcrepo.server.errors.ServerException;
 import org.fcrepo.server.errors.StreamIOException;
 import org.fcrepo.server.errors.UnsupportedTranslationException;
@@ -71,9 +72,11 @@ class DistributedObjectSource {
         return new DistributedObject(null, obj);
     }
 
-    public DOWriter fetchObject(String pid, Context context) {
+    public DOWriter fetchObject(String pid, Context context) throws ObjectNotInLowlevelStorageException {
         try {
             return new DistributedObject(context, m_storage.readObject(pid));
+        } catch (ObjectNotInLowlevelStorageException e) {
+            throw e;
         } catch (Exception e) {
             throw new RuntimeException("Could not load FOXML for " + pid, e);
         }

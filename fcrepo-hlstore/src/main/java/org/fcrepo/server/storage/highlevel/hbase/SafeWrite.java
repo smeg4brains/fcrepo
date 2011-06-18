@@ -23,8 +23,8 @@ public class SafeWrite {
 
     private static final byte[] TS_COLUMN = "ts".getBytes();
 
-    private static final byte[] FOLLOWUP_ACTION_COLUMN =
-            "action.1.delete".getBytes();
+    private static final byte[] FOLLOWUP_ACTION_COLUMN = "action.1.delete"
+            .getBytes();
 
     private final String m_pid;
 
@@ -188,11 +188,16 @@ public class SafeWrite {
                 throws LowlevelStorageException {
             try {
                 if (m_put != null) {
-                    return m_table.checkAndPut(m_put.getRow(),
-                                               expected_val.family,
-                                               expected_val.column,
-                                               expected_val.value,
-                                               m_put);
+
+                    System.out.println("Check and put: " + m_put.getRow());
+                    boolean result =
+                            m_table.checkAndPut(m_put.getRow(),
+                                                expected_val.family,
+                                                expected_val.column,
+                                                expected_val.value,
+                                                m_put);
+                    System.out.println("Result of check and put: " + result);
+                    return result;
                 } else {
                     m_table.delete(m_delete);
                     return true;
