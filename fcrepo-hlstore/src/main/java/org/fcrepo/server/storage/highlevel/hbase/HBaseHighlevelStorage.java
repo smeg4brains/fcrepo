@@ -14,9 +14,15 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.NavigableMap;
 
+import javax.annotation.PostConstruct;
+
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
@@ -38,6 +44,7 @@ import org.fcrepo.server.storage.types.Datastream;
 import org.fcrepo.server.storage.types.DigitalObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Required;
 
 /*
  * TODO: be aware of versioning: throw exception if table doesn't accommodate
@@ -54,8 +61,12 @@ public class HBaseHighlevelStorage
 
     private String m_format = DEFAULT_FORMAT;
 
-    private static final Logger LOG =
-            LoggerFactory.getLogger(HBaseHighlevelStorage.class);
+    private String m_root;
+
+    private String m_master;
+
+    private static final Logger LOG = LoggerFactory
+            .getLogger(HBaseHighlevelStorage.class);
 
     private final ThreadLocal<HTable> m_table = new ThreadLocal<HTable>() {
 
@@ -65,7 +76,64 @@ public class HBaseHighlevelStorage
         }
     };
 
-    private static final String PROP_HBASE_ROOTDIR = "hbase.rootdir";
+    /**
+     * Location of HBase files for standalone mode.
+     * <p>
+     * Used with standalone filesystem Base only (testing & experimenting).
+     * </p>
+     *
+     * @param root
+     *        File URI pointing to HBase data root directory.
+     */
+    public void setHBaseRoot(String root) {
+        m_root = root;
+    }
+
+    /**
+     * Address of the HBase master node.
+     * <p>
+     * Used with distributed HBbase only.
+     * </p>
+     *
+     * @param master
+     *        Host and port of the HBase master node.
+     */
+    public void setHBaseMaster(String master) {
+        m_master = master;
+    }
+
+    public void setHBaseTable(String table) {
+        m_tableName = table;
+    }
+
+    /**
+     * Set fedora object serialization format.
+     *
+     * @param format
+     *        Format URI. Default is {@value #DEFAULT_FORMAT}.
+     */
+    public void setFormat(String format) {
+        m_format = format;
+    }
+
+    /**
+     * Set Character encoding for fedora object serialization
+     *
+     * @param encoding
+     *        Encoding. Default is {@value #DEFAULT_ENCODING}.
+     */
+    public void setEncoding(String encoding) {
+        m_encoding = encoding;
+    }
+
+    @Required
+    public void setDOTranslator(DOTranslator dot) {
+        m_translator = dot;
+    }
+
+    private static final String PROP_HBASE_ROOTDIR = "root";
+
+    private static final String PROP_HBASE_MASTER = "master";
 
     private static final String PROP_FORMAT = "format";
 
@@ -79,7 +147,7 @@ public class HBaseHighlevelStorage
 
     private static final byte[] NULL_BYTES = new byte[0];
 
-    private HBaseConfiguration m_hbase_conf;
+    private Configuration m_hbase_conf;
 
     private String m_tableName;
 
@@ -88,40 +156,46 @@ public class HBaseHighlevelStorage
                                  String role)
             throws ModuleInitializationException {
         super(moduleParameters, server, role);
-    }
 
-    @Override
-    public void initModule() throws ModuleInitializationException {
+        m_root = getParameter(PROP_HBASE_ROOTDIR);
 
-        m_hbase_conf = new HBaseConfiguration();
-        if (getParameter(PROP_HBASE_ROOTDIR) == null) {
-            throw new ModuleInitializationException("Property "
-                                                            + PROP_HBASE_ROOTDIR
-                                                            + " must be set!",
-                                                    HighlevelStorage.class
-                                                            .getName());
-        }
-        m_hbase_conf.set(PROP_HBASE_ROOTDIR, getParameter(PROP_HBASE_ROOTDIR));
+        m_master = getParameter(PROP_HBASE_MASTER);
 
         m_tableName = getParameter(PROP_TABLE);
 
-        if (getParameter(PROP_ENCODING) != null) {
-            m_encoding = getParameter(PROP_ENCODING);
+        if ((m_format = getParameter(PROP_FORMAT)) == null) {
+            m_format = DEFAULT_FORMAT;
         }
 
-        if (getParameter(PROP_FORMAT) != null) {
-            m_format = getParameter(PROP_FORMAT);
+        if ((m_encoding = getParameter(PROP_ENCODING)) == null) {
+            m_encoding = DEFAULT_ENCODING;
         }
     }
 
     @Override
-    public void postInitModule() throws ModuleInitializationException {
+    @PostConstruct
+    public void initModule() throws ModuleInitializationException {
+
+        m_hbase_conf = HBaseConfiguration.create();
+        if (m_master != null) {
+            m_hbase_conf.set(PROP_HBASE_MASTER, m_master);
+        } else if (m_root != null) {
+            m_hbase_conf.set(PROP_HBASE_ROOTDIR, m_root);
+        } else {
+            throw new ModuleInitializationException("HBase root or master must be set!",
+                                                    HighlevelStorage.class
+                                                            .getName());
+        }
+        m_hbase_conf.set(PROP_HBASE_ROOTDIR, m_root);
 
         /* verify table exists, and try instantiating one */
         try {
-            if (!HTable.isTableEnabled(m_hbase_conf, m_tableName)) {
-                throw new ModuleInitializationException("HBase table '"
-                        + m_tableName + "' does not exist", getRole());
+            HBaseAdmin hbase = new HBaseAdmin(m_hbase_conf);
+            if (!hbase.tableExists(m_tableName)) {
+                LOG.info("No HBase table " + m_tableName + ", creating");
+                initTable();
+            } else {
+                LOG.info("Table " + m_tableName + "is enabled");
             }
         } catch (IOException e) {
             throw new ModuleInitializationException("Could not contact HBase",
@@ -130,9 +204,6 @@ public class HBaseHighlevelStorage
         }
         m_table.set(getHTable());
 
-        m_translator =
-                (DOTranslator) getServer()
-                        .getModule("fedora.server.storage.translation.DOTranslator");
     }
 
     public void add(DigitalObject obj) throws LowlevelStorageException {
@@ -227,11 +298,12 @@ public class HBaseHighlevelStorage
             }
         }
         for (Datastream d : managedStreams.getDeleted()) {
-            LOG.info("DELETING managed datastream " + d.DatastreamID + " dsTime:"
-                     + getDStime(d) + " createDT: " + d.DSCreateDT.getTime()
-                     + " DSLocation: " + d.DSLocation);
-            dropDSVersions.deleteColumn(Family.DATASTREAM, d.DatastreamID
-                    .getBytes(), getDStime(d));
+            LOG.info("DELETING managed datastream " + d.DatastreamID
+                    + " dsTime:" + getDStime(d) + " createDT: "
+                    + d.DSCreateDT.getTime() + " DSLocation: " + d.DSLocation);
+            dropDSVersions.deleteColumn(Family.DATASTREAM,
+                                        d.DatastreamID.getBytes(),
+                                        getDStime(d));
             addsAndClears.add(Family.DATASTREAM,
                               d.DatastreamID.getBytes(),
                               getDStime(d),
@@ -298,14 +370,10 @@ public class HBaseHighlevelStorage
 
                 if (datastream.DSLocation.contains("copy://")) {
                     dsTime =
-                            Long
-                                    .parseLong(datastream.DSLocation
-                                            .split("\\+")[2]);
+                            Long.parseLong(datastream.DSLocation.split("\\+")[2]);
                 }
 
-                LOG
-                        .info("readDatastream: reading datastream with TS "
-                                + dsTime);
+                LOG.info("readDatastream: reading datastream with TS " + dsTime);
                 ds.setTimeStamp(dsTime);
 
                 return new ByteArrayInputStream(m_table.get().get(ds)
@@ -489,14 +557,12 @@ public class HBaseHighlevelStorage
                 long streamDate = d.DSCreateDT.getTime();
 
                 if (streamDate > locationDate) {
-                    LOG
-                            .info("getDSTime: DSCreateDT > DSLocation, so using DSCreateDT ("
-                                    + streamDate + ")");
+                    LOG.info("getDSTime: DSCreateDT > DSLocation, so using DSCreateDT ("
+                            + streamDate + ")");
                     return streamDate;
                 } else {
-                    LOG
-                            .info("getDSTime: DSCreateDt <= DSLocation, so using DSLocation ("
-                                    + locationDate + ")");
+                    LOG.info("getDSTime: DSCreateDt <= DSLocation, so using DSLocation ("
+                            + locationDate + ")");
                     return locationDate;
                 }
             }
@@ -571,6 +637,21 @@ public class HBaseHighlevelStorage
                                                       : m_encoding));
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private void initTable() throws ModuleInitializationException {
+        try {
+            HBaseAdmin hbase = new HBaseAdmin(m_hbase_conf);
+            HTableDescriptor desc = new HTableDescriptor(m_tableName);
+            desc.addFamily(new HColumnDescriptor("object".getBytes()));
+            desc.addFamily(new HColumnDescriptor("datastream".getBytes()));
+            desc.addFamily(new HColumnDescriptor("meta".getBytes()));
+            hbase.createTable(desc);
+        } catch (Exception e) {
+            throw new ModuleInitializationException("Could not create new HBase table",
+                                                    getRole(),
+                                                    e);
         }
     }
 

@@ -153,17 +153,11 @@ public class DefaultAccess
 
         // get ref to OAIProvider, for repositoryDomainName param for oai info
         Module oaiProvider = getServer().getModule("org.fcrepo.oai.OAIProvider");
-        if (oaiProvider == null) {
-            throw new ModuleInitializationException("DefaultAccess module requires that the server "
-                                                    + "has an OAIProvider module configured so that it can get the repositoryDomainName parameter.",
-                                                    getRole());
-        }
-        m_repositoryDomainName =
+        if (oaiProvider != null) {
+            m_repositoryDomainName =
                 oaiProvider.getParameter("repositoryDomainName");
-        if (m_repositoryDomainName == null) {
-            throw new ModuleInitializationException("DefaultAccess module requires that the OAIProvider "
-                                                    + "module has the repositoryDomainName parameter specified.",
-                                                    getRole());
+        } else {
+            m_repositoryDomainName = "";
         }
 
         m_authorizationModule =

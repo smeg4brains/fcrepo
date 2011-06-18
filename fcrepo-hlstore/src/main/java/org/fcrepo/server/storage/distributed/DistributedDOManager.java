@@ -4,12 +4,10 @@ package org.fcrepo.server.storage.distributed;
 import java.io.IOException;
 import java.io.InputStream;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import javax.annotation.PostConstruct;
 
 import org.fcrepo.server.Context;
 import org.fcrepo.server.Module;
@@ -21,9 +19,9 @@ import org.fcrepo.server.errors.ModuleInitializationException;
 import org.fcrepo.server.errors.ServerException;
 import org.fcrepo.server.errors.StorageDeviceException;
 import org.fcrepo.server.management.PIDGenerator;
+import org.fcrepo.server.search.FieldSearch;
 import org.fcrepo.server.search.FieldSearchQuery;
 import org.fcrepo.server.search.FieldSearchResult;
-import org.fcrepo.server.search.ObjectFields;
 import org.fcrepo.server.storage.DOManager;
 import org.fcrepo.server.storage.DOReader;
 import org.fcrepo.server.storage.DOReaderCache;
@@ -38,7 +36,7 @@ import org.fcrepo.server.storage.util.ObjectBuilder;
 import org.fcrepo.server.validation.DOValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import org.springframework.beans.factory.annotation.Required;
 
 /**
  * DOManager that is safe to use with multiple writers to a single object store.
@@ -70,8 +68,7 @@ import org.slf4j.LoggerFactory;
  * <li>Secondary indexing services such as Field Search or the Resource Index
  * are currently disabled. TODO: implement as external services that are updated
  * asynchronously by messaging, or polling the data on their own.</li>
- * <li>In a
- * cluster of multiple Fedora instances, the <code>PIDGenerator</code>
+ * <li>In a cluster of multiple Fedora instances, the <code>PIDGenerator</code>
  * implementation will either have to coordinate pid generation amongst the
  * various fedora instance, or each instance will need to be individually
  * configured in some way that results in unique pids (e.g. using
@@ -90,8 +87,14 @@ public class DistributedDOManager
         extends Module
         implements DOManager {
 
-    private static final Logger LOG =
-            LoggerFactory.getLogger(DistributedDOManager.class);
+    private static final Logger LOG = LoggerFactory
+            .getLogger(DistributedDOManager.class);
+
+    private static final String DEFAULT_EXPORT_FORMAT = FOXML1_1.uri.toString();
+
+    private static final String DEFAULT_CHARACTER_ENCODING = "UTF-8";
+
+    private static final String DEFAULT_PID_NAMESPACE = "changeme";
 
     private PIDGenerator m_pidGenerator;
 
@@ -105,17 +108,69 @@ public class DistributedDOManager
 
     private DOTranslator m_translator;
 
-    private String m_defaultExportFormat;
+    private FieldSearch m_fieldSearch;
 
-    private String m_pidNamespace;
+    private String m_defaultExportFormat = DEFAULT_EXPORT_FORMAT;
 
-    private String m_encoding;
+    private String m_pidNamespace = DEFAULT_PID_NAMESPACE;
+
+    private String m_encoding = DEFAULT_CHARACTER_ENCODING;
 
     private ObjectBuilder m_builder;
 
     private HighlevelStorage m_permanentStore;
 
     Set<String> m_retainPIDs;
+
+    @Required
+    public void setPIDGenerator(PIDGenerator pidg) {
+        m_pidGenerator = pidg;
+    }
+
+    @Required
+    public void setDOValidator(DOValidator dov) {
+        m_validator = dov;
+    }
+
+    @Required
+    public void setDeploymentManager(DeploymentManager dm) {
+        m_deploymentManager = dm;
+    }
+
+    @Required
+    public void setDOTranslator(DOTranslator dot) {
+        m_translator = dot;
+    }
+
+    @Required
+    public void setHighlevelStorage(HighlevelStorage hs) {
+        m_permanentStore = hs;
+    }
+
+    @Required
+    public void setFieldSearch(FieldSearch fs) {
+        m_fieldSearch = fs;
+    }
+
+    public void setDOReaderCache(DOReaderCache dorc) {
+        m_readerCache = dorc;
+    }
+
+    public void setDefaultExportFormat(String fmt) {
+        m_defaultExportFormat = fmt;
+    }
+
+    public void setCharacterEncoding(String ce) {
+        m_encoding = ce;
+    }
+
+    public void setDefaultPidNamespace(String dpn) {
+        m_pidNamespace = dpn;
+    }
+
+    public void setRetainPids(Set<String> rp) {
+        m_retainPIDs = rp;
+    }
 
     public DistributedDOManager(Map<String, String> moduleParameters,
                                 Server server,
@@ -126,59 +181,14 @@ public class DistributedDOManager
     }
 
     @Override
-    public void postInitModule() throws ModuleInitializationException {
+    @PostConstruct
+    public void initModule() throws ModuleInitializationException {
 
-        m_pidGenerator =
-                (PIDGenerator) getServer()
-                        .getModule("org.fcrepo.server.management.PIDGenerator");
-        m_validator =
-                (DOValidator) getServer()
-                        .getModule("org.fcrepo.server.validation.DOValidator");
-        if (m_validator == null) {
-            throw new ModuleInitializationException("DOValidator not loaded.",
+        if (!(m_permanentStore instanceof Atomic)) {
+            throw new ModuleInitializationException("High level storage must support atomic writes",
                                                     getRole());
         }
 
-        m_deploymentManager =
-                (DeploymentManager) getServer()
-                        .getModule(DeploymentManager.class.getName());
-
-        m_defaultExportFormat = getParameter("defaultExportFormat");
-        if (m_defaultExportFormat == null) {
-            throw new ModuleInitializationException("Parameter defaultExportFormat "
-                                                            + "not given, but it's required.",
-                                                    getRole());
-        }
-
-        m_translator =
-                (DOTranslator) getServer()
-                        .getModule("org.fcrepo.server.storage.translation.DOTranslator");
-
-        try {
-            m_permanentStore =
-                    (HighlevelStorage) getServer()
-                            .getModule(HighlevelStorage.class.getName());
-            if (m_permanentStore == null) {
-                throw new ModuleInitializationException("HighlevelStorage not loaded",
-                                                        getRole());
-            }
-
-            if (!(m_permanentStore instanceof Atomic)) {
-                throw new ModuleInitializationException("High level storage must support atomic writes",
-                                                        getRole());
-            }
-        } catch (ClassCastException e) {
-            throw new ModuleInitializationException("Storage "
-                    + m_permanentStore.getClass()
-                    + " is not an instance of AtomicLowLevelStorage", getRole());
-        }
-
-        m_encoding = getParameter("storageCharacterEncoding");
-        if (m_encoding == null) {
-            m_encoding = "UTF-8";
-        }
-
-        initReaderCache();
         getPIDNamespace();
 
         m_access =
@@ -199,13 +209,7 @@ public class DistributedDOManager
                                          int maxResults,
                                          FieldSearchQuery query)
             throws ServerException {
-        /*
-         * TODO: Write a FieldSearch impl that uses an external service/index
-         * (such as lucene), as distributed Fedora instances should not be
-         * maintaining their own indexes
-         */
-
-        return new EmptyResult();
+        return m_fieldSearch.findObjects(resultFields, maxResults, query);
     }
 
     public DOWriter getIngestWriter(boolean cachedObjectRequired,
@@ -285,7 +289,7 @@ public class DistributedDOManager
     public FieldSearchResult resumeFindObjects(Context context,
                                                String sessionToken)
             throws ServerException {
-        return new EmptyResult();
+        return m_fieldSearch.resumeFindObjects(sessionToken);
     }
 
     public DOReader getReader(boolean cachedObjectRequired,
@@ -336,55 +340,8 @@ public class DistributedDOManager
                 + "Are you crazy??");
     }
 
-    private void initReaderCache() throws ModuleInitializationException {
-        // readerCacheSize and readerCacheSeconds (optional, defaults = 20, 5)
-        String rcSize = getParameter("readerCacheSize");
-        if (rcSize == null) {
-            LOG.debug("Parameter readerCacheSize not given, using 20");
-            rcSize = "20";
-        }
-        int readerCacheSize;
-        try {
-            readerCacheSize = Integer.parseInt(rcSize);
-            if (readerCacheSize < 0) {
-                throw new Exception("Cannot be less than zero");
-            }
-        } catch (Exception e) {
-            throw new ModuleInitializationException("Bad value for readerCacheSize parameter: "
-                                                            + e.getMessage(),
-                                                    getRole());
-        }
-
-        String rcSeconds = getParameter("readerCacheSeconds");
-        if (rcSeconds == null) {
-            LOG.debug("Parameter readerCacheSeconds not given, using 5");
-            rcSeconds = "5";
-        }
-        int readerCacheSeconds;
-        try {
-            readerCacheSeconds = Integer.parseInt(rcSeconds);
-            if (readerCacheSeconds < 1) {
-                throw new Exception("Cannot be less than one");
-            }
-        } catch (Exception e) {
-            throw new ModuleInitializationException("Bad value for readerCacheSeconds parameter: "
-                                                            + e.getMessage(),
-                                                    getRole());
-        }
-
-        if (readerCacheSize > 0) {
-            m_readerCache =
-                    new DOReaderCache(readerCacheSize, readerCacheSeconds);
-        }
-    }
-
     private void getPIDNamespace() throws ModuleInitializationException {
         // pidNamespace (required, 1-17 chars, a-z, A-Z, 0-9 '-' '.')
-        m_pidNamespace = getParameter("pidNamespace");
-        if (m_pidNamespace == null) {
-            throw new ModuleInitializationException("pidNamespace parameter must be specified.",
-                                                    getRole());
-        }
         if (m_pidNamespace.length() > 17 || m_pidNamespace.length() < 1) {
             throw new ModuleInitializationException("pidNamespace parameter must be 1-17 chars long",
                                                     getRole());
@@ -411,57 +368,16 @@ public class DistributedDOManager
         if (badChars.toString().length() > 0) {
             throw new ModuleInitializationException("pidNamespace contains "
                                                             + "invalid character(s) '"
-                                                            + badChars
-                                                                    .toString()
+                                                            + badChars.toString()
                                                             + "'",
                                                     getRole());
         }
     }
 
     protected void initRetainPID() {
-        m_retainPIDs = new HashSet<String>();
-        String retainPIDs = getParameter("retainPIDs");
-        if (retainPIDs == null || retainPIDs.equals("*")) {
-            // when m_retainPIDS is set to null, that means "all"
-            m_retainPIDs = null;
-        } else {
-            // add to list (accept space and/or comma-separated)
-            String[] ns =
-                    retainPIDs.trim().replaceAll(" +", ",").replaceAll(",+",
-                                                                       ",")
-                            .split(",");
-            for (String element : ns) {
-                if (element.length() > 0) {
-                    m_retainPIDs.add(element);
-                }
-            }
-
+        if (m_retainPIDs != null) {
             // fedora-system PIDs must be ingestable as-is
             m_retainPIDs.add("fedora-system");
-        }
-    }
-
-    private class EmptyResult
-            implements FieldSearchResult {
-
-        public long getCompleteListSize() {
-            return 0;
-        }
-
-        public long getCursor() {
-            return 0;
-        }
-
-        public Date getExpirationDate() {
-            return new Date(0);
-        }
-
-        public String getToken() {
-            return "-";
-        }
-
-        public List<ObjectFields> objectFieldsList() {
-            return new ArrayList<ObjectFields>();
         }
     }
 }
