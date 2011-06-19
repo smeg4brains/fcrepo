@@ -50,6 +50,11 @@ public class HighlevelDatastreamManagedContent
     }
 
     @Override
+    public InputStream getContentStream(Context cxt) throws StreamIOException {
+        return getContentStream();
+    }
+
+    @Override
     public InputStream getContentStream() throws StreamIOException {
         try {
             // For new or modified datastreams, the new bytestream hasn't yet
