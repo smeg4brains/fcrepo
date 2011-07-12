@@ -4,19 +4,26 @@ import java.net.URI;
 import java.nio.charset.Charset;
 
 import org.apache.hadoop.conf.Configuration;
+import org.fcrepo.common.Constants;
 
 public class HadoopHighLevelStorageProperties {
+	private static final Charset charset = Charset.forName("UTF-8");
 	private Configuration configuration;
 	private String objectTableName;
-	private String contentColumnName;
 	private String datastreamTableName;
-	private Charset charset = Charset.forName("UTF-8");
-	private String defaultQualifier;
-	private String defaultFormat;
-	private String defaultEncoding;
+	private String defaultQualifier="1";
+	private String defaultFormat=Constants.FOXML1_1.toString();
+	private String defaultEncoding="UTF-8";
 	private URI uri;
 	private String username;
 	private String passwd;
+	
+	public enum Column{
+		LABEL,STATE,OWNER_ID,C_DATE,M_DATE,DCM_DATE,TITLE,CREATOR,SUBJECT,DESCRIPTION,PUBLISHER,CONTRIBUTER,DATE,TYPE,FORMAT,IDENTIFIER,SOURCE,LANGUAGE,RELATION,COVERAGE,RIGHTS,CONTENT_RAW;
+		public byte[] toByteArray(){
+			return this.toString().getBytes(charset);
+		}
+	}
 
 	public String getDefaultQualifier() {
 		return defaultQualifier;
@@ -62,17 +69,6 @@ public class HadoopHighLevelStorageProperties {
 		this.configuration = configuration;
 	}
 
-	public String getContentColumnName() {
-		return contentColumnName;
-	}
-	public byte[] getContentColumnNameAsBytes() {
-		return contentColumnName.getBytes(charset);
-	}
-
-	public void setContentColumnName(String contentColumnName) {
-		this.contentColumnName = contentColumnName;
-	}
-
 	public String getObjectTableName() {
 		return objectTableName;
 	}
@@ -97,12 +93,8 @@ public class HadoopHighLevelStorageProperties {
 		this.datastreamTableName = datastreamTableName;
 	}
 
-	public Charset getCharset() {
+	public static  Charset getCharset() {
 		return charset;
-	}
-
-	public void setCharset(String charset) {
-		this.charset = Charset.forName(charset);
 	}
 
 	public URI getUri() {

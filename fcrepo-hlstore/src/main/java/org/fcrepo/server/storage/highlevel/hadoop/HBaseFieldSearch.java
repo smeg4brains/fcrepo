@@ -36,14 +36,13 @@ import org.slf4j.LoggerFactory;
 
 public class HBaseFieldSearch extends Module implements FieldSearch {
 	private static final Logger log = LoggerFactory.getLogger(HBaseFieldSearch.class);
-	private static final Configuration hbaseConf = HBaseConfiguration.create();
 	private final HTable objectTable;
-	private final HadoopHighLevelStorageProperties props;
+	private final HadoopHighLevelStorageProperties properties;
 
 	public HBaseFieldSearch(Map<String, String> moduleParameters, Server server, String role, HadoopHighLevelStorageProperties props)
 			throws ModuleInitializationException {
 		super(moduleParameters, server, role);
-		this.props = props;
+		this.properties = props;
 		try {
 			objectTable = new HTable(props.getObjectTableNameAsBytes());
 		} catch (IOException e) {
@@ -72,7 +71,7 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 				log.debug("searching for terms " + query.getTerms());
 				Scan s = new Scan();
 				Iterator<Result> objects = objectTable.getScanner(s).iterator();
-				HBaseFieldSearchResult result = new HBaseFieldSearchResult(resultFields,objects,props);
+				HBaseFieldSearchResult result = new HBaseFieldSearchResult(resultFields,objects,properties);
 				return result;
 			} else {
 				throw new UnsupportedOperationException("not yet implemented");
@@ -101,7 +100,7 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 			token = UUID.randomUUID().toString();
 			while (hbaseResults.hasNext()) {
 				Result res = hbaseResults.next();
-				log.debug("adding " + new String(res.getRow(),props.getCharset()));
+				log.debug("adding " + new String(res.getRow(),HadoopHighLevelStorageProperties.getCharset()));
 				ObjectFields f;
 				try {
 					f = new ObjectFields(resultFields);
@@ -109,7 +108,7 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 					log.error("unable to create search results");
 					throw new RuntimeException("unable to create search result ",e);
 				}
-				f.setPid(new String(res.getRow(),props.getCharset()));
+				f.setPid(new String(res.getRow(),HadoopHighLevelStorageProperties.getCharset()));
 				for (String field:resultFields){
 					log.warn("unable to set result field " + field);
 				}
