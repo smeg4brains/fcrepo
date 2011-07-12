@@ -19,6 +19,7 @@ import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.fcrepo.server.Module;
 import org.fcrepo.server.Server;
 import org.fcrepo.server.errors.LowlevelStorageException;
@@ -91,6 +92,12 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 			throw new LowlevelStorageException(false, e.getLocalizedMessage(), e);
 		}
 		Put p = new Put(key);
+		long ts=System.currentTimeMillis();
+		p.add(HadoopHighLevelStorageProperties.Column.C_DATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(object.getCreateDate().getTime()));
+		p.add(HadoopHighLevelStorageProperties.Column.LABEL.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(object.getLabel()));
+		p.add(HadoopHighLevelStorageProperties.Column.M_DATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(object.getLastModDate().getTime()));
+		p.add(HadoopHighLevelStorageProperties.Column.OWNER_ID.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(object.getOwnerId()));
+		p.add(HadoopHighLevelStorageProperties.Column.STATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(object.getState()));
 		p.add(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes(), System.currentTimeMillis(), out.toByteArray());
 		try {
 			this.objectTable.put(p);

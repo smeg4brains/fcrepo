@@ -93,7 +93,6 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 		private Date expirationDate;
 		private String token;
 		private long cursor;
-		private long size;
 
 		public HBaseFieldSearchResult(String[] resultFields,Iterator<Result> hbaseResults,HadoopHighLevelStorageProperties props) {
 			expirationDate = new Date();
@@ -103,16 +102,14 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 				log.debug("adding " + new String(res.getRow(),HadoopHighLevelStorageProperties.getCharset()));
 				ObjectFields f;
 				try {
-					f = new ObjectFields(resultFields);
+					String[] fields={"pid"};
+					f = new ObjectFields(fields);
 				} catch (UnrecognizedFieldException e) {
 					log.error("unable to create search results");
 					throw new RuntimeException("unable to create search result ",e);
 				}
 				f.setPid(new String(res.getRow(),HadoopHighLevelStorageProperties.getCharset()));
-				for (String field:resultFields){
-					log.warn("unable to set result field " + field);
-				}
-				size++;
+				objectFields.add(f);
 			}
 		}
 
@@ -133,7 +130,7 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 
 		@Override
 		public long getCompleteListSize() {
-			return size;
+			return objectFields.size();
 		}
 
 		@Override
