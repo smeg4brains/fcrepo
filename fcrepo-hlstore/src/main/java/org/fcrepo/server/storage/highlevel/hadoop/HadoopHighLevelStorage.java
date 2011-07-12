@@ -85,6 +85,8 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 		byte[] key = object.getPid().getBytes(charset);
 		addDatastreams(object);
 		ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
+		log.debug("saving object with pid " + object.getPid());
+		log.debug("label: " + object.getLabel());
 		try {
 			translator.serialize(object, out, props.getDefaultFormat(), props.getDefaultEncoding(), DOTranslationUtility.SERIALIZE_STORAGE_INTERNAL);
 		} catch (ServerException e) {
@@ -214,6 +216,7 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 
 	@Override
 	public void update(DigitalObject oldVersion, DigitalObject newVersion) throws LowlevelStorageException {
+		log.debug("updating digital object " + oldVersion.getPid());
 		Put p = new Put(newVersion.getPid().getBytes(charset));
 		ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
 		try {
@@ -222,7 +225,20 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 			log.error("Unable to update object " + oldVersion.getPid() + " with " + newVersion.getPid());
 			throw new LowlevelStorageException(false, e.getLocalizedMessage(), e);
 		}
-		p.add(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes(), System.currentTimeMillis(), out.toByteArray());
+		long ts=System.currentTimeMillis();
+		p.add(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes(), ts, out.toByteArray());
+		p.add(HadoopHighLevelStorageProperties.Column.C_DATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(newVersion.getCreateDate().getTime()));
+		p.add(HadoopHighLevelStorageProperties.Column.LABEL.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(newVersion.getLabel()));
+		p.add(HadoopHighLevelStorageProperties.Column.M_DATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(newVersion.getLastModDate().getTime()));
+		p.add(HadoopHighLevelStorageProperties.Column.OWNER_ID.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(newVersion.getOwnerId()));
+		p.add(HadoopHighLevelStorageProperties.Column.STATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(newVersion.getState()));
+		p.add(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes(), ts, out.toByteArray());
+		try{
+			objectTable.put(p);
+		}catch(Exception e){
+			log.error("Unable to update object",e);
+			throw new LowlevelStorageException(false, "unable to update object",e);
+		}
 		List<String> oldIds=new ArrayList<String>();
 		Iterator<String> oldDatastreams = oldVersion.datastreamIdIterator();
 		while (oldDatastreams.hasNext()){
