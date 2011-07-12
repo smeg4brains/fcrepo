@@ -18,6 +18,7 @@ import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.filter.ValueFilter;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.fcrepo.server.Module;
 import org.fcrepo.server.Server;
 import org.fcrepo.server.errors.GeneralException;
@@ -102,13 +103,14 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 				log.debug("adding " + new String(res.getRow(),HadoopHighLevelStorageProperties.getCharset()));
 				ObjectFields f;
 				try {
-					String[] fields={"pid"};
+					String[] fields={"pid","label","cDate"};
 					f = new ObjectFields(fields);
 				} catch (UnrecognizedFieldException e) {
 					log.error("unable to create search results");
 					throw new RuntimeException("unable to create search result ",e);
 				}
 				f.setPid(new String(res.getRow(),HadoopHighLevelStorageProperties.getCharset()));
+				f.setLabel(new String(res.getValue(HadoopHighLevelStorageProperties.Column.LABEL.toByteArray(), props.getDefaultQualifierAsBytes()),HadoopHighLevelStorageProperties.getCharset()));
 				objectFields.add(f);
 			}
 		}
