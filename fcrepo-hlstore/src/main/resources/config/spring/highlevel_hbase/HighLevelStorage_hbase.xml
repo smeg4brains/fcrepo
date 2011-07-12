@@ -1,27 +1,67 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<beans xmlns="http://www.springframework.org/schema/beans"
-	xmlns:context="http://www.springframework.org/schema/context"
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:context="http://www.springframework.org/schema/context"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans
                          http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
                          http://www.springframework.org/schema/context
                          http://www.springframework.org/schema/context/spring-context-3.0.xsd">
 
-	<bean id="org.fcrepo.server.storage.highlevel.HighlevelStorage"
-		class="org.fcrepo.server.storage.highlevel.hbase.HBaseHighlevelStorage">
+	<bean id="org.fcrepo.server.storage.highlevel.hadoop.Properties" class="org.fcrepo.server.storage.highlevel.hadoop.HadoopHighLevelStorageProperties">
+		<property name="configuration" ref="org.fcrepo.server.storage.highlevel.hadoop.HBaseConfiguration" />
+		<property name="datastreamTableName" value="fedora_datastreams" />
+		<property name="objectTableName" value="fedora_objects" />
+	</bean>
 
-		<property name="HBaseRoot" value="file:///home/birkland/hadoop/data_hbase" />
-		<property name="HBaseTable" value="fedora" />
-		<property name="DOTranslator" ref="org.fcrepo.server.storage.translation.DOTranslator"/>
-		<property name="Management" ref="org.fcrepo.server.management.Management" />
-		<property name="ExternalContentManager" ref="org.fcrepo.server.storage.ExternalContentManager" />
+	<bean id="org.fcrepo.server.storage.highlevel.hadoop.HBaseConfiguration" class="org.apache.hadoop.hbase.HBaseConfiguration"
+		factory-method="create" />
 
+	<bean id="org.fcrepo.server.search.FieldSearch" class="org.fcrepo.server.storage.highlevel.hadoop.HBaseFieldSearch">
 		<constructor-arg index="0">
 			<map />
 		</constructor-arg>
 		<constructor-arg index="1" ref="org.fcrepo.server.Server" />
-		<constructor-arg index="2" type="java.lang.String"
-			value="org.fcrepo.server.storage.highlevel.HighlevelStorage" />
+		<constructor-arg index="2" type="java.lang.String" value="org.fcrepo.server.search.FieldSearch" />
+		<constructor-arg index="3" ref="org.fcrepo.server.storage.highlevel.hadoop.Properties"></constructor-arg>
 	</bean>
+
+	<bean id="org.fcrepo.server.storage.highlevel.HighlevelStorage" class="org.fcrepo.server.storage.highlevel.hadoop.HadoopHighLevelStorage">
+		<constructor-arg index="0">
+			<map />
+		</constructor-arg>
+		<constructor-arg index="1" ref="org.fcrepo.server.Server" />
+		<constructor-arg index="2" type="java.lang.String" value="org.fcrepo.server.storage.highlevel.HighlevelStorage" />
+		<constructor-arg index="3" ref="org.fcrepo.server.storage.highlevel.hadoop.Properties" />
+		<property name="translator" ref="org.fcrepo.server.storage.translation.DOTranslator" />
+	</bean>
+
+	<bean id="org.fcrepo.server.storage.DOManager" class="org.fcrepo.server.storage.distributed.DistributedDOManager">
+		<constructor-arg index="0">
+			<map />
+		</constructor-arg>
+		<constructor-arg index="1" ref="org.fcrepo.server.Server" />
+		<constructor-arg index="2" type="java.lang.String" value="org.fcrepo.server.storage.DOManager" />
+		<property name="PIDGenerator" ref="org.fcrepo.server.management.PIDGenerator" />
+		<property name="DeploymentManager" ref="org.fcrepo.server.storage.distributed.DeploymentManager" />
+		<property name="HighlevelStorage" ref="org.fcrepo.server.storage.highlevel.HighlevelStorage" />
+		<property name="FieldSearch" ref="org.fcrepo.server.search.FieldSearch" />
+		<property name="DOValidator" ref="org.fcrepo.server.validation.DOValidator" />
+		<property name="DOTranslator" ref="org.fcrepo.server.storage.translation.DOTranslator" />
+		<property name="DOReaderCache" ref="org.fcrepo.server.storage.DOReaderCache" />
+	</bean>
+
+	<bean id="org.fcrepo.server.storage.DOReaderCache" class="org.fcrepo.server.storage.DOReaderCache">
+		<constructor-arg index="0" value="20" />
+		<constructor-arg index="1" value="5" />
+	</bean>
+
+	<bean id="org.fcrepo.server.management.PIDGenerator" class="org.fcrepo.server.management.UUIDPidGenerator">
+		<constructor-arg index="0">
+			<map />
+		</constructor-arg>
+		<constructor-arg index="1" ref="org.fcrepo.server.Server" />
+		<constructor-arg index="2" type="java.lang.String" value="org.fcrepo.server.management.PIDGenerator" />
+	</bean>
+
+	<bean id="org.fcrepo.server.storage.distributed.DeploymentManager" class="org.fcrepo.server.storage.distributed.EmptyDeploymentManager" />
 </beans>
