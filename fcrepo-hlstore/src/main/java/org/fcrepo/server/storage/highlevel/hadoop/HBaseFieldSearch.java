@@ -62,14 +62,16 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 				log.debug("searching for terms " + query.getTerms());
 				Scan s = new Scan();
 				FilterList filters = new FilterList(FilterList.Operator.MUST_PASS_ONE);
-				String[] terms = query.getTerms().split("\\s");
-				for (String term : terms) {
-					if (term.length() > 0 && !"*".equals(term)) {
-						term = term.replaceAll("[*]", "");
-						filters.addFilter(new RowFilter(CompareOp.EQUAL, new SubstringComparator(term)));
+				if (query.getTerms().length() > 0 && !"*".equals(query.getTerms())) {
+					String[] terms = query.getTerms().split("\\s");
+					for (String term : terms) {
+						if (term.length() > 0 && !"*".equals(term)) {
+							term = term.replaceAll("[*]", "");
+							filters.addFilter(new RowFilter(CompareOp.EQUAL, new SubstringComparator(term)));
+						}
 					}
+					s.setFilter(filters);
 				}
-				s.setFilter(filters);
 				Iterator<Result> objects = getObjectTable().getScanner(s).iterator();
 				HBaseFieldSearchResult result = new HBaseFieldSearchResult(resultFields, objects, properties);
 				return result;
