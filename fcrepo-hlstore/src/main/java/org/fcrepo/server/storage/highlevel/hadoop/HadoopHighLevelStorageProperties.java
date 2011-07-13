@@ -11,6 +11,8 @@ public class HadoopHighLevelStorageProperties {
 	private Configuration configuration;
 	private String objectTableName;
 	private String datastreamTableName;
+	private String pidTableName;
+	private String reservedPIDTableName;;
 	private String defaultQualifier="1";
 	private String defaultFormat=Constants.FOXML1_1.toString();
 	private String defaultEncoding="UTF-8";
@@ -25,6 +27,22 @@ public class HadoopHighLevelStorageProperties {
 		public byte[] toByteArray(){
 			return this.toString().getBytes(charset);
 		}
+	}
+
+	public String getPidTableName() {
+		return pidTableName;
+	}
+
+	public void setPidTableName(String pidTableName) {
+		this.pidTableName = pidTableName;
+	}
+
+	public String getReservedPIDTableName() {
+		return reservedPIDTableName;
+	}
+
+	public void setReservedPIDTableName(String reservedPIDTableName) {
+		this.reservedPIDTableName = reservedPIDTableName;
 	}
 
 	public String getDefaultQualifier() {

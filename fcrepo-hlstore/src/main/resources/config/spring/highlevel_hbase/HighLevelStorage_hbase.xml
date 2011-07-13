@@ -11,6 +11,8 @@
 		<property name="configuration" ref="org.fcrepo.server.storage.highlevel.hadoop.HBaseConfiguration" />
 		<property name="datastreamTableName" value="fedora_datastreams" />
 		<property name="objectTableName" value="fedora_objects" />
+		<property name="pidTableName" value="fedora_pid" />
+		<property name="reservedPIDTableName" value="fedora_reserved_pids" />
 	</bean>
 
 	<bean id="org.fcrepo.server.storage.highlevel.hadoop.HBaseConfiguration" class="org.apache.hadoop.hbase.HBaseConfiguration"
@@ -55,12 +57,13 @@
 		<constructor-arg index="1" value="5" />
 	</bean>
 
-	<bean id="org.fcrepo.server.management.PIDGenerator" class="org.fcrepo.server.management.UUIDPidGenerator">
+	<bean id="org.fcrepo.server.management.PIDGenerator" class="org.fcrepo.server.management.HBasePIDGenerator">
 		<constructor-arg index="0">
 			<map />
 		</constructor-arg>
 		<constructor-arg index="1" ref="org.fcrepo.server.Server" />
 		<constructor-arg index="2" type="java.lang.String" value="org.fcrepo.server.management.PIDGenerator" />
+		<constructor-arg index="3" ref="org.fcrepo.server.storage.highlevel.hadoop.Properties" />
 	</bean>
 
 	<bean id="org.fcrepo.server.storage.distributed.DeploymentManager" class="org.fcrepo.server.storage.distributed.EmptyDeploymentManager" />
