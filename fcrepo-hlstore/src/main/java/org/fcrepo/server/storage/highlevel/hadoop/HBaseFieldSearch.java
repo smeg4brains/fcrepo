@@ -16,7 +16,11 @@ import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
+import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.RegexStringComparator;
+import org.apache.hadoop.hbase.filter.RowFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
+import org.apache.hadoop.hbase.filter.SubstringComparator;
 import org.apache.hadoop.hbase.filter.ValueFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.fcrepo.server.Module;
@@ -40,8 +44,7 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 	private final HTable objectTable;
 	private final HadoopProperties properties;
 
-	public HBaseFieldSearch(Map<String, String> moduleParameters, Server server, String role, HadoopProperties props)
-			throws ModuleInitializationException {
+	public HBaseFieldSearch(Map<String, String> moduleParameters, Server server, String role, HadoopProperties props) throws ModuleInitializationException {
 		super(moduleParameters, server, role);
 		this.properties = props;
 		try {
@@ -71,8 +74,12 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 			if (query.getType() == FieldSearchQuery.TERMS_TYPE) {
 				log.debug("searching for terms " + query.getTerms());
 				Scan s = new Scan();
+				if (query.getTerms().length() > 0 && !"*".equals(query.getTerms())){
+					String term=query.getTerms().replaceAll("[*]", "");
+					s.setFilter(new RowFilter(CompareOp.EQUAL,new SubstringComparator(term)));
+				}
 				Iterator<Result> objects = objectTable.getScanner(s).iterator();
-				HBaseFieldSearchResult result = new HBaseFieldSearchResult(resultFields,objects,properties);
+				HBaseFieldSearchResult result = new HBaseFieldSearchResult(resultFields, objects, properties);
 				return result;
 			} else {
 				throw new UnsupportedOperationException("not yet implemented");
@@ -95,7 +102,7 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 		private String token;
 		private long cursor;
 
-		public HBaseFieldSearchResult(String[] resultFields,Iterator<Result> hbaseResults,HadoopProperties props) {
+		public HBaseFieldSearchResult(String[] resultFields, Iterator<Result> hbaseResults, HadoopProperties props) {
 			expirationDate = new Date();
 			token = UUID.randomUUID().toString();
 			while (hbaseResults.hasNext()) {
@@ -103,14 +110,15 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 				log.debug("adding " + Bytes.toString(res.getRow()));
 				ObjectFields f;
 				try {
-					String[] fields={"pid","label","cDate"};
+					String[] fields = { "pid", "label", "cDate" };
 					f = new ObjectFields(fields);
 				} catch (UnrecognizedFieldException e) {
 					log.error("unable to create search results");
-					throw new RuntimeException("unable to create search result ",e);
+					throw new RuntimeException("unable to create search result ", e);
 				}
 				f.setPid(Bytes.toString(res.getRow()));
 				f.setLabel(Bytes.toString(res.getValue(Bytes.toBytes(HadoopHighLevelStorage.OBJECT_TABLE_COL_LABEL), props.getQualifier())));
+				f.setCDate(new Date(Bytes.toLong(res.getValue(Bytes.toBytes(HadoopHighLevelStorage.OBJECT_TABLE_COL_CREATION_DATE), props.getQualifier()))));
 				objectFields.add(f);
 			}
 		}
@@ -141,5 +149,7 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 		}
 
 	}
-
+	private class SearchFilter extends SingleColumnValueFilter{
+		
+	}
 }
