@@ -17,6 +17,7 @@ import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
 import org.apache.hadoop.hbase.filter.Filter;
+import org.apache.hadoop.hbase.filter.FilterList;
 import org.apache.hadoop.hbase.filter.RegexStringComparator;
 import org.apache.hadoop.hbase.filter.RowFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
@@ -74,10 +75,15 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 			if (query.getType() == FieldSearchQuery.TERMS_TYPE) {
 				log.debug("searching for terms " + query.getTerms());
 				Scan s = new Scan();
-				if (query.getTerms().length() > 0 && !"*".equals(query.getTerms())){
-					String term=query.getTerms().replaceAll("[*]", "");
-					s.setFilter(new RowFilter(CompareOp.EQUAL,new SubstringComparator(term)));
+				FilterList filters = new FilterList(FilterList.Operator.MUST_PASS_ONE);
+				String[] terms = query.getTerms().split("\\s");
+				for (String term : terms) {
+					if (term.length() > 0 && !"*".equals(term)) {
+						term = term.replaceAll("[*]", "");
+						filters.addFilter(new RowFilter(CompareOp.EQUAL, new SubstringComparator(term)));
+					}
 				}
+				s.setFilter(filters);
 				Iterator<Result> objects = objectTable.getScanner(s).iterator();
 				HBaseFieldSearchResult result = new HBaseFieldSearchResult(resultFields, objects, properties);
 				return result;
@@ -149,7 +155,8 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 		}
 
 	}
-	private class SearchFilter extends SingleColumnValueFilter{
-		
+
+	private class SearchFilter extends SingleColumnValueFilter {
+
 	}
 }
