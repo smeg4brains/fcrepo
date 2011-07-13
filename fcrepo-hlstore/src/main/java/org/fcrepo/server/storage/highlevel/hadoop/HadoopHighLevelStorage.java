@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.hbase.client.Delete;
@@ -100,6 +101,9 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 		p.add(Bytes.toBytes(OBJECT_TABLE_COL_OWNER), props.getQualifier(), ts, Bytes.toBytes(object.getOwnerId()));
 		p.add(Bytes.toBytes(OBJECT_TABLE_COL_STATE), props.getQualifier(), ts, Bytes.toBytes(object.getState()));
 		p.add(Bytes.toBytes(OBJECT_TABLE_COL_CONTENT), props.getQualifier(), System.currentTimeMillis(), out.toByteArray());
+		for (Entry<String,String> entry:object.getExtProperties().entrySet()){
+			log.debug("property: " + entry.getKey() + " value: " + entry.getValue());
+		}
 		try {
 			this.objectTable.put(p);
 		} catch (IOException e) {
