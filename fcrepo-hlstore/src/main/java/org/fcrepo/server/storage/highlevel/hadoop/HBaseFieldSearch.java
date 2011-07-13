@@ -38,14 +38,14 @@ import org.slf4j.LoggerFactory;
 public class HBaseFieldSearch extends Module implements FieldSearch {
 	private static final Logger log = LoggerFactory.getLogger(HBaseFieldSearch.class);
 	private final HTable objectTable;
-	private final HadoopHighLevelStorageProperties properties;
+	private final HadoopProperties properties;
 
-	public HBaseFieldSearch(Map<String, String> moduleParameters, Server server, String role, HadoopHighLevelStorageProperties props)
+	public HBaseFieldSearch(Map<String, String> moduleParameters, Server server, String role, HadoopProperties props)
 			throws ModuleInitializationException {
 		super(moduleParameters, server, role);
 		this.properties = props;
 		try {
-			objectTable = new HTable(props.getObjectTableNameAsBytes());
+			objectTable = new HTable(props.getObjectTableName());
 		} catch (IOException e) {
 			log.error("Unable to connect to HTable " + props.getObjectTableName());
 			throw new ModuleInitializationException("unable to connect to HTable reource " + props.getObjectTableName() + ": " + e.getLocalizedMessage(), role);
@@ -95,12 +95,12 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 		private String token;
 		private long cursor;
 
-		public HBaseFieldSearchResult(String[] resultFields,Iterator<Result> hbaseResults,HadoopHighLevelStorageProperties props) {
+		public HBaseFieldSearchResult(String[] resultFields,Iterator<Result> hbaseResults,HadoopProperties props) {
 			expirationDate = new Date();
 			token = UUID.randomUUID().toString();
 			while (hbaseResults.hasNext()) {
 				Result res = hbaseResults.next();
-				log.debug("adding " + new String(res.getRow(),HadoopHighLevelStorageProperties.getCharset()));
+				log.debug("adding " + Bytes.toString(res.getRow()));
 				ObjectFields f;
 				try {
 					String[] fields={"pid","label","cDate"};
@@ -109,8 +109,8 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 					log.error("unable to create search results");
 					throw new RuntimeException("unable to create search result ",e);
 				}
-				f.setPid(new String(res.getRow(),HadoopHighLevelStorageProperties.getCharset()));
-				f.setLabel(new String(res.getValue(HadoopHighLevelStorageProperties.Column.LABEL.toByteArray(), props.getDefaultQualifierAsBytes()),HadoopHighLevelStorageProperties.getCharset()));
+				f.setPid(Bytes.toString(res.getRow()));
+				f.setLabel(Bytes.toString(res.getValue(Bytes.toBytes(HadoopHighLevelStorage.OBJECT_TABLE_COL_LABEL), props.getQualifier())));
 				objectFields.add(f);
 			}
 		}

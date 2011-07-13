@@ -7,12 +7,13 @@
                          http://www.springframework.org/schema/context
                          http://www.springframework.org/schema/context/spring-context-3.0.xsd">
 
-	<bean id="org.fcrepo.server.storage.highlevel.hadoop.Properties" class="org.fcrepo.server.storage.highlevel.hadoop.HadoopHighLevelStorageProperties">
-		<property name="configuration" ref="org.fcrepo.server.storage.highlevel.hadoop.HBaseConfiguration" />
+	<bean id="org.fcrepo.server.storage.highlevel.hadoop.Properties" class="org.fcrepo.server.storage.highlevel.hadoop.HadoopProperties">
+		<constructor-arg index="0" ref="org.fcrepo.server.storage.highlevel.hadoop.HBaseConfiguration" />
+		<constructor-arg index="1" type="java.lang.String" value="UTF-8" />
 		<property name="datastreamTableName" value="fedora_datastreams" />
 		<property name="objectTableName" value="fedora_objects" />
 		<property name="pidTableName" value="fedora_pid" />
-		<property name="reservedPIDTableName" value="fedora_reserved_pids" />
+		<property name="reservedPidsTableName" value="fedora_reserved_pids" />
 	</bean>
 
 	<bean id="org.fcrepo.server.storage.highlevel.hadoop.HBaseConfiguration" class="org.apache.hadoop.hbase.HBaseConfiguration"
@@ -24,7 +25,7 @@
 		</constructor-arg>
 		<constructor-arg index="1" ref="org.fcrepo.server.Server" />
 		<constructor-arg index="2" type="java.lang.String" value="org.fcrepo.server.search.FieldSearch" />
-		<constructor-arg index="3" ref="org.fcrepo.server.storage.highlevel.hadoop.Properties"></constructor-arg>
+		<constructor-arg index="3" ref="org.fcrepo.server.storage.highlevel.hadoop.Properties" />
 	</bean>
 
 	<bean id="org.fcrepo.server.storage.highlevel.HighlevelStorage" class="org.fcrepo.server.storage.highlevel.hadoop.HadoopHighLevelStorage">
@@ -34,6 +35,7 @@
 		<constructor-arg index="1" ref="org.fcrepo.server.Server" />
 		<constructor-arg index="2" type="java.lang.String" value="org.fcrepo.server.storage.highlevel.HighlevelStorage" />
 		<constructor-arg index="3" ref="org.fcrepo.server.storage.highlevel.hadoop.Properties" />
+		<constructor-arg index="4" ref="org.fcrepo.server.storage.highlevel.hadoop.HBaseAdminTool" />
 		<property name="translator" ref="org.fcrepo.server.storage.translation.DOTranslator" />
 	</bean>
 
@@ -64,7 +66,12 @@
 		<constructor-arg index="1" ref="org.fcrepo.server.Server" />
 		<constructor-arg index="2" type="java.lang.String" value="org.fcrepo.server.management.PIDGenerator" />
 		<constructor-arg index="3" ref="org.fcrepo.server.storage.highlevel.hadoop.Properties" />
+		<constructor-arg index="4" ref="org.fcrepo.server.storage.highlevel.hadoop.HBaseAdminTool" />
 	</bean>
 
 	<bean id="org.fcrepo.server.storage.distributed.DeploymentManager" class="org.fcrepo.server.storage.distributed.EmptyDeploymentManager" />
+	
+	<bean id="org.fcrepo.server.storage.highlevel.hadoop.HBaseAdminTool" class="org.fcrepo.server.storage.highlevel.hadoop.HBaseAdminTool">
+		<constructor-arg index="0" ref="org.fcrepo.server.storage.highlevel.hadoop.Properties" />
+	</bean>
 </beans>

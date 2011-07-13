@@ -6,16 +6,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
@@ -27,7 +25,6 @@ import org.fcrepo.server.errors.ModuleInitializationException;
 import org.fcrepo.server.errors.ServerException;
 import org.fcrepo.server.storage.distributed.Atomic;
 import org.fcrepo.server.storage.highlevel.HighlevelStorage;
-import org.fcrepo.server.storage.highlevel.hadoop.HadoopHighLevelStorageProperties.Column;
 import org.fcrepo.server.storage.translation.DOTranslationUtility;
 import org.fcrepo.server.storage.translation.DOTranslator;
 import org.fcrepo.server.storage.types.BasicDigitalObject;
@@ -39,37 +36,38 @@ import org.slf4j.LoggerFactory;
 public class HadoopHighLevelStorage extends Module implements HighlevelStorage, Atomic {
 	private static final Logger log = LoggerFactory.getLogger(HadoopHighLevelStorage.class);
 	private static final Charset charset = Charset.defaultCharset();
+	public static final String OBJECT_TABLE_COL_LABEL = "label";
+	public static final String OBJECT_TABLE_COL_OWNER = "owner_id";
+	public static final String OBJECT_TABLE_COL_CREATION_DATE = "c_date";
+	public static final String OBJECT_TABLE_COL_MODIFICATION_DATE = "m_date";
+	public static final String OBJECT_TABLE_COL_STATE = "state";
+	public static final String OBJECT_TABLE_COL_CONTENT = "content_raw";
+	public static final String DATASTREAM_TABLE_COL_CONTENT = "content_raw";
 
 	private final HTable objectTable;
 	private final HTable datastreamTable;
-	private final HadoopHighLevelStorageProperties props;
+	private final HadoopProperties props;
+	private final HBaseAdminTool adminTool;
 
 	private DOTranslator translator;
 
-	public HadoopHighLevelStorage(Map<String, String> moduleParams, Server server, String role, HadoopHighLevelStorageProperties props)
+	public HadoopHighLevelStorage(Map<String, String> moduleParams, Server server, String role, HadoopProperties props, HBaseAdminTool adminTool)
 			throws ModuleInitializationException {
 		super(moduleParams, server, role);
 		this.props = props;
+		this.adminTool = adminTool;
 		try {
-			HBaseAdmin admin = new HBaseAdmin(props.getConfiguration());
-			if (!admin.tableExists(props.getObjectTableNameAsBytes())) {
-				log.debug("creating object table");
-				HTableDescriptor ot = new HTableDescriptor(props.getObjectTableNameAsBytes());
-				for (Column c:HadoopHighLevelStorageProperties.Column.values()){
-					HColumnDescriptor colDesc = new HColumnDescriptor(c.toByteArray());
-					ot.addFamily(colDesc);
-				}
-				admin.createTable(ot);
+			if (adminTool.tableExists(props.getObjectTableName())) {
+				objectTable = new HTable(Bytes.toBytes(props.getObjectTableName()));
+			} else {
+				objectTable = adminTool.createTable(props.getObjectTableName(), Arrays.asList(OBJECT_TABLE_COL_LABEL, OBJECT_TABLE_COL_OWNER,
+						OBJECT_TABLE_COL_STATE, OBJECT_TABLE_COL_CREATION_DATE, OBJECT_TABLE_COL_MODIFICATION_DATE, OBJECT_TABLE_COL_CONTENT));
 			}
-			if (!admin.tableExists(props.getDatastreamTableNameAsBytes())) {
-				log.debug("creating datastream table");
-				HTableDescriptor dst = new HTableDescriptor(props.getDatastreamTableNameAsBytes());
-				HColumnDescriptor contentCol = new HColumnDescriptor(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray());
-				dst.addFamily(contentCol);
-				admin.createTable(dst);
+			if (adminTool.tableExists(props.getDatastreamTableName())) {
+				datastreamTable = new HTable(Bytes.toBytes(props.getDatastreamTableName()));
+			} else {
+				datastreamTable = adminTool.createTable(props.getDatastreamTableName(), Arrays.asList(DATASTREAM_TABLE_COL_CONTENT));
 			}
-			this.objectTable = new HTable(props.getObjectTableNameAsBytes());
-			this.datastreamTable = new HTable(props.getDatastreamTableNameAsBytes());
 		} catch (Exception e) {
 			log.error(e.getLocalizedMessage(), e);
 			throw new ModuleInitializationException("unable to initialize HBase connection: " + e.getLocalizedMessage(), role);
@@ -88,19 +86,20 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 		log.debug("saving object with pid " + object.getPid());
 		log.debug("label: " + object.getLabel());
 		try {
-			translator.serialize(object, out, props.getDefaultFormat(), props.getDefaultEncoding(), DOTranslationUtility.SERIALIZE_STORAGE_INTERNAL);
+			translator.serialize(object, out, Bytes.toString(props.getFormat()), Bytes.toString(props.getEncoding()),
+					DOTranslationUtility.SERIALIZE_STORAGE_INTERNAL);
 		} catch (ServerException e) {
 			log.error("unable to serialize object", e);
 			throw new LowlevelStorageException(false, e.getLocalizedMessage(), e);
 		}
 		Put p = new Put(key);
-		long ts=System.currentTimeMillis();
-		p.add(HadoopHighLevelStorageProperties.Column.C_DATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(object.getCreateDate().getTime()));
-		p.add(HadoopHighLevelStorageProperties.Column.LABEL.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(object.getLabel()));
-		p.add(HadoopHighLevelStorageProperties.Column.M_DATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(object.getLastModDate().getTime()));
-		p.add(HadoopHighLevelStorageProperties.Column.OWNER_ID.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(object.getOwnerId()));
-		p.add(HadoopHighLevelStorageProperties.Column.STATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(object.getState()));
-		p.add(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes(), System.currentTimeMillis(), out.toByteArray());
+		long ts = System.currentTimeMillis();
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_CREATION_DATE), props.getQualifier(), ts, Bytes.toBytes(object.getCreateDate().getTime()));
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_LABEL), props.getQualifier(), ts, Bytes.toBytes(object.getLabel()));
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_MODIFICATION_DATE), props.getQualifier(), ts, Bytes.toBytes(object.getLastModDate().getTime()));
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_OWNER), props.getQualifier(), ts, Bytes.toBytes(object.getOwnerId()));
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_STATE), props.getQualifier(), ts, Bytes.toBytes(object.getState()));
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_CONTENT), props.getQualifier(), System.currentTimeMillis(), out.toByteArray());
 		try {
 			this.objectTable.put(p);
 		} catch (IOException e) {
@@ -120,7 +119,7 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 				try {
 					in = ds.getContentStream();
 					IOUtils.copy(in, out);
-					p.add(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes(), System.currentTimeMillis(), out.toByteArray());
+					p.add(Bytes.toBytes(DATASTREAM_TABLE_COL_CONTENT), props.getQualifier(), System.currentTimeMillis(), out.toByteArray());
 					datastreamTable.put(p);
 				} catch (Exception e) {
 					log.error("Unable to save datastream " + dsId);
@@ -187,7 +186,7 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 		if (res.isEmpty()) {
 			throw new LowlevelStorageException(false, "Unable to find datastream " + datastream.DatastreamID);
 		}
-		return new ByteArrayInputStream(res.getValue(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes()));
+		return new ByteArrayInputStream(res.getValue(Bytes.toBytes(DATASTREAM_TABLE_COL_CONTENT), props.getQualifier()));
 	}
 
 	@Override
@@ -205,8 +204,8 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 		}
 		DigitalObject obj = new BasicDigitalObject();
 		try {
-			translator.deserialize(new ByteArrayInputStream(res.getValue(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes())), obj,
-					props.getDefaultFormat(), props.getDefaultEncoding(), DOTranslationUtility.SERIALIZE_STORAGE_INTERNAL);
+			translator.deserialize(new ByteArrayInputStream(res.getValue(Bytes.toBytes(OBJECT_TABLE_COL_CONTENT), props.getQualifier())), obj,
+					Bytes.toString(props.getFormat()), Bytes.toString(props.getEncoding()), DOTranslationUtility.SERIALIZE_STORAGE_INTERNAL);
 		} catch (Exception e) {
 			log.error("unable to get deserialize object from HBase with pid " + pid);
 			throw new LowlevelStorageException(false, e.getLocalizedMessage(), e);
@@ -220,28 +219,28 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 		Put p = new Put(newVersion.getPid().getBytes(charset));
 		ByteArrayOutputStream out = new ByteArrayOutputStream(1024);
 		try {
-			translator.serialize(newVersion, out, props.getDefaultFormat(), props.getDefaultEncoding(), DOTranslationUtility.SERIALIZE_STORAGE_INTERNAL);
+			translator.serialize(newVersion, out, Bytes.toString(props.getFormat()), Bytes.toString(props.getEncoding()),
+					DOTranslationUtility.SERIALIZE_STORAGE_INTERNAL);
 		} catch (ServerException e) {
 			log.error("Unable to update object " + oldVersion.getPid() + " with " + newVersion.getPid());
 			throw new LowlevelStorageException(false, e.getLocalizedMessage(), e);
 		}
-		long ts=System.currentTimeMillis();
-		p.add(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes(), ts, out.toByteArray());
-		p.add(HadoopHighLevelStorageProperties.Column.C_DATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(newVersion.getCreateDate().getTime()));
-		p.add(HadoopHighLevelStorageProperties.Column.LABEL.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(newVersion.getLabel()));
-		p.add(HadoopHighLevelStorageProperties.Column.M_DATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(newVersion.getLastModDate().getTime()));
-		p.add(HadoopHighLevelStorageProperties.Column.OWNER_ID.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(newVersion.getOwnerId()));
-		p.add(HadoopHighLevelStorageProperties.Column.STATE.toByteArray(),props.getDefaultQualifierAsBytes(),ts,Bytes.toBytes(newVersion.getState()));
-		p.add(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes(), ts, out.toByteArray());
-		try{
+		long ts = System.currentTimeMillis();
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_CONTENT), props.getQualifier(), ts, out.toByteArray());
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_CREATION_DATE), props.getQualifier(), ts, Bytes.toBytes(newVersion.getCreateDate().getTime()));
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_LABEL), props.getQualifier(), ts, Bytes.toBytes(newVersion.getLabel()));
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_MODIFICATION_DATE), props.getQualifier(), ts, Bytes.toBytes(newVersion.getLastModDate().getTime()));
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_OWNER), props.getQualifier(), ts, Bytes.toBytes(newVersion.getOwnerId()));
+		p.add(Bytes.toBytes(OBJECT_TABLE_COL_STATE), props.getQualifier(), ts, Bytes.toBytes(newVersion.getState()));
+		try {
 			objectTable.put(p);
-		}catch(Exception e){
-			log.error("Unable to update object",e);
-			throw new LowlevelStorageException(false, "unable to update object",e);
+		} catch (Exception e) {
+			log.error("Unable to update object", e);
+			throw new LowlevelStorageException(false, "unable to update object", e);
 		}
-		List<String> oldIds=new ArrayList<String>();
+		List<String> oldIds = new ArrayList<String>();
 		Iterator<String> oldDatastreams = oldVersion.datastreamIdIterator();
-		while (oldDatastreams.hasNext()){
+		while (oldDatastreams.hasNext()) {
 			oldIds.add(oldDatastreams.next());
 		}
 		Iterator<String> datastreams = newVersion.datastreamIdIterator();
@@ -254,7 +253,7 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 					out = new ByteArrayOutputStream(1024);
 					in = ds.getContentStream();
 					IOUtils.copy(in, out);
-					dsPut.add(HadoopHighLevelStorageProperties.Column.CONTENT_RAW.toByteArray(), props.getDefaultQualifierAsBytes(), System.currentTimeMillis(), out.toByteArray());
+					dsPut.add(Bytes.toBytes(OBJECT_TABLE_COL_CONTENT), props.getQualifier(), System.currentTimeMillis(), out.toByteArray());
 					datastreamTable.put(dsPut);
 				} catch (Exception e) {
 					throw new LowlevelStorageException(false, e.getLocalizedMessage(), e);
