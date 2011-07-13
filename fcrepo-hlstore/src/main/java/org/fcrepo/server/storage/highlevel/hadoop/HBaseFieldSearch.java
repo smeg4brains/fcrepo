@@ -8,21 +8,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import jena.query;
-
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.CompareFilter.CompareOp;
-import org.apache.hadoop.hbase.filter.Filter;
 import org.apache.hadoop.hbase.filter.FilterList;
-import org.apache.hadoop.hbase.filter.RegexStringComparator;
 import org.apache.hadoop.hbase.filter.RowFilter;
 import org.apache.hadoop.hbase.filter.SingleColumnValueFilter;
 import org.apache.hadoop.hbase.filter.SubstringComparator;
-import org.apache.hadoop.hbase.filter.ValueFilter;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.fcrepo.server.Module;
 import org.fcrepo.server.Server;
@@ -30,7 +23,6 @@ import org.fcrepo.server.errors.GeneralException;
 import org.fcrepo.server.errors.ModuleInitializationException;
 import org.fcrepo.server.errors.ServerException;
 import org.fcrepo.server.errors.UnrecognizedFieldException;
-import org.fcrepo.server.search.Condition;
 import org.fcrepo.server.search.EmptyResult;
 import org.fcrepo.server.search.FieldSearch;
 import org.fcrepo.server.search.FieldSearchQuery;
@@ -42,18 +34,12 @@ import org.slf4j.LoggerFactory;
 
 public class HBaseFieldSearch extends Module implements FieldSearch {
 	private static final Logger log = LoggerFactory.getLogger(HBaseFieldSearch.class);
-	private final HTable objectTable;
+	private HTable objectTable;
 	private final HadoopProperties properties;
 
 	public HBaseFieldSearch(Map<String, String> moduleParameters, Server server, String role, HadoopProperties props) throws ModuleInitializationException {
 		super(moduleParameters, server, role);
 		this.properties = props;
-		try {
-			objectTable = new HTable(props.getObjectTableName());
-		} catch (IOException e) {
-			log.error("Unable to connect to HTable " + props.getObjectTableName());
-			throw new ModuleInitializationException("unable to connect to HTable reource " + props.getObjectTableName() + ": " + e.getLocalizedMessage(), role);
-		}
 	}
 
 	@Override
@@ -84,7 +70,7 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 					}
 				}
 				s.setFilter(filters);
-				Iterator<Result> objects = objectTable.getScanner(s).iterator();
+				Iterator<Result> objects = getObjectTable().getScanner(s).iterator();
 				HBaseFieldSearchResult result = new HBaseFieldSearchResult(resultFields, objects, properties);
 				return result;
 			} else {
@@ -100,6 +86,13 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 	public FieldSearchResult resumeFindObjects(String sessionToken) throws ServerException {
 		log.debug("resuming search for token " + sessionToken);
 		return new EmptyResult();
+	}
+
+	private HTable getObjectTable() throws IOException {
+		if (objectTable == null) {
+			return new HTable(properties.getObjectTableName());
+		}
+		return objectTable;
 	}
 
 	public class HBaseFieldSearchResult implements FieldSearchResult {
@@ -156,7 +149,4 @@ public class HBaseFieldSearch extends Module implements FieldSearch {
 
 	}
 
-	private class SearchFilter extends SingleColumnValueFilter {
-
-	}
 }
