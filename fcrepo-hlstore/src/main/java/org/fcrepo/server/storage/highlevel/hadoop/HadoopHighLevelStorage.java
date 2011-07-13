@@ -48,7 +48,6 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 	private final HTable objectTable;
 	private final HTable datastreamTable;
 	private final HadoopProperties props;
-	private final HBaseAdminTool adminTool;
 
 	private DOTranslator translator;
 
@@ -56,7 +55,6 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 			throws ModuleInitializationException {
 		super(moduleParams, server, role);
 		this.props = props;
-		this.adminTool = adminTool;
 		try {
 			if (adminTool.tableExists(props.getObjectTableName())) {
 				objectTable = new HTable(Bytes.toBytes(props.getObjectTableName()));
@@ -101,6 +99,7 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 		p.add(Bytes.toBytes(OBJECT_TABLE_COL_OWNER), props.getQualifier(), ts, Bytes.toBytes(object.getOwnerId()));
 		p.add(Bytes.toBytes(OBJECT_TABLE_COL_STATE), props.getQualifier(), ts, Bytes.toBytes(object.getState()));
 		p.add(Bytes.toBytes(OBJECT_TABLE_COL_CONTENT), props.getQualifier(), System.currentTimeMillis(), out.toByteArray());
+		log.debug("extended properties:");
 		for (Entry<String,String> entry:object.getExtProperties().entrySet()){
 			log.debug("property: " + entry.getKey() + " value: " + entry.getValue());
 		}
