@@ -1,4 +1,3 @@
-
 package org.fcrepo.server.storage.highlevel;
 
 import java.io.InputStream;
@@ -34,49 +33,49 @@ import org.fcrepo.server.storage.types.DigitalObject;
  */
 public interface HighlevelStorage {
 
-    /**
-     * Creates FOXML and adds datastream versions only if there is no stored
-     * version of the object.
-     *
-     * @param object
-     *        DigitalObject containing new object metadata and managed content
-     *        streams.
-     * @throws ObjectNotInLowlevelStorageException
-     *         thrown when an object with the same PID already exists in storage
-     */
-    public void add(DigitalObject object) throws LowlevelStorageException;
+	/**
+	 * Creates FOXML and adds datastream versions only if there is no stored
+	 * version of the object.
+	 * 
+	 * @param object
+	 *            DigitalObject containing new object metadata and managed
+	 *            content streams.
+	 * @throws ObjectNotInLowlevelStorageException
+	 *             thrown when an object with the same PID already exists in
+	 *             storage
+	 */
+	public void add(DigitalObject object) throws LowlevelStorageException;
 
-    /**
-     * Updates FOXML and adds or removes datastream versions from storage.
-     *
-     * @throws OutOfDateException
-     *         thrown when the object in storage has changed since the given
-     *         oldVersion object.
-     */
-    public void update(DigitalObject oldVersion, DigitalObject newVersion)
-            throws LowlevelStorageException;
+	/**
+	 * Updates FOXML and adds or removes datastream versions from storage.
+	 * 
+	 * @throws OutOfDateException
+	 *             thrown when the object in storage has changed since the given
+	 *             oldVersion object.
+	 */
+	public void update(DigitalObject oldVersion, DigitalObject newVersion) throws LowlevelStorageException;
 
-    /**
-     * Reads an object from storage.
-     *
-     * @param pid
-     *        PID of object to read.
-     * @return Fully populated DigitalObject
-     * @throws LowlevelStorageException
-     */
-    public DigitalObject readObject(String pid) throws LowlevelStorageException;
+	/**
+	 * Reads an object from storage.
+	 * 
+	 * @param pid
+	 *            PID of object to read.
+	 * @return Fully populated DigitalObject
+	 * @throws LowlevelStorageException
+	 */
+	public DigitalObject readObject(String pid) throws LowlevelStorageException;
 
-    public InputStream readDatastream(DigitalObject object,
-                                      Datastream datastream)
-            throws LowlevelStorageException;
+	public InputStream readDatastream(DigitalObject object, Datastream datastream) throws LowlevelStorageException;
 
-    /**
-     * Remove FOXML and all managed datastreams from storage.
-     *
-     * @param pid
-     *        PID of the object to remove.
-     */
-    public void purge(String pid) throws LowlevelStorageException;
+	public InputStream readDatastream(String datastreamId);
 
-    public boolean exists(String pid) throws LowlevelStorageException;
+	/**
+	 * Remove FOXML and all managed datastreams from storage.
+	 * 
+	 * @param pid
+	 *            PID of the object to remove.
+	 */
+	public void purge(String pid) throws LowlevelStorageException;
+
+	public boolean exists(String pid) throws LowlevelStorageException;
 }

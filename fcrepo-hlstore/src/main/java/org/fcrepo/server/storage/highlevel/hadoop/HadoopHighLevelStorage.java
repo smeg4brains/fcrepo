@@ -11,6 +11,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.hbase.client.Delete;
@@ -19,18 +20,22 @@ import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.fcrepo.common.Constants;
+import org.fcrepo.common.Models;
 import org.fcrepo.server.Module;
 import org.fcrepo.server.Server;
 import org.fcrepo.server.errors.LowlevelStorageException;
 import org.fcrepo.server.errors.ModuleInitializationException;
 import org.fcrepo.server.errors.ServerException;
 import org.fcrepo.server.storage.distributed.Atomic;
+import org.fcrepo.server.storage.distributed.DeploymentManager;
 import org.fcrepo.server.storage.highlevel.HighlevelStorage;
 import org.fcrepo.server.storage.translation.DOTranslationUtility;
 import org.fcrepo.server.storage.translation.DOTranslator;
 import org.fcrepo.server.storage.types.BasicDigitalObject;
 import org.fcrepo.server.storage.types.Datastream;
 import org.fcrepo.server.storage.types.DigitalObject;
+import org.fcrepo.server.storage.types.RelationshipTuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,6 +53,7 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 	private final HTable objectTable;
 	private final HTable datastreamTable;
 	private final HadoopProperties props;
+	private DeploymentManager deploymentManager;
 
 	private DOTranslator translator;
 
@@ -71,6 +77,10 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 			log.error(e.getLocalizedMessage(), e);
 			throw new ModuleInitializationException("unable to initialize HBase connection: " + e.getLocalizedMessage(), role);
 		}
+	}
+
+	public void setDeploymentManager(DeploymentManager deploymentManager) {
+		this.deploymentManager = deploymentManager;
 	}
 
 	public void setTranslator(DOTranslator translator) {
@@ -100,7 +110,7 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 		p.add(Bytes.toBytes(OBJECT_TABLE_COL_STATE), props.getQualifier(), ts, Bytes.toBytes(object.getState()));
 		p.add(Bytes.toBytes(OBJECT_TABLE_COL_CONTENT), props.getQualifier(), System.currentTimeMillis(), out.toByteArray());
 		log.debug("extended properties:");
-		for (Entry<String,String> entry:object.getExtProperties().entrySet()){
+		for (Entry<String, String> entry : object.getExtProperties().entrySet()) {
 			log.debug("property: " + entry.getKey() + " value: " + entry.getValue());
 		}
 		try {
@@ -124,6 +134,17 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 					IOUtils.copy(in, out);
 					p.add(Bytes.toBytes(DATASTREAM_TABLE_COL_CONTENT), props.getQualifier(), System.currentTimeMillis(), out.toByteArray());
 					datastreamTable.put(p);
+					if (object.hasContentModel(Models.SERVICE_DEPLOYMENT_3_0)) {
+						String sDep = object.getPid();
+						Set<RelationshipTuple> sDefs = object.getRelationships(Constants.MODEL.IS_DEPLOYMENT_OF, null);
+						Set<RelationshipTuple> models = object.getRelationships(Constants.MODEL.IS_CONTRACTOR_OF, null);
+						for (RelationshipTuple sDef : sDefs) {
+							for (RelationshipTuple model : models) {
+								deploymentManager.addDeployment(model.getObjectPID(), sDef.getObjectPID(), object.getPid());
+							}
+						}
+					}
+					// add service deployments
 				} catch (Exception e) {
 					log.error("Unable to save datastream " + dsId);
 					throw new LowlevelStorageException(false, e.getLocalizedMessage(), e);
@@ -249,6 +270,7 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 		Iterator<String> datastreams = newVersion.datastreamIdIterator();
 		while (datastreams.hasNext()) {
 			String id = datastreams.next();
+			oldIds.remove(id);
 			Put dsPut = new Put(id.getBytes(charset));
 			for (Datastream ds : newVersion.datastreams(id)) {
 				InputStream in = null;
@@ -265,7 +287,27 @@ public class HadoopHighLevelStorage extends Module implements HighlevelStorage, 
 					IOUtils.closeQuietly(out);
 				}
 			}
-
 		}
+		for (String oldId : oldIds) {
+			Delete d = new Delete(Bytes.toBytes(oldId));
+			try {
+				datastreamTable.delete(d);
+			} catch (IOException e) {
+				throw new LowlevelStorageException(false, "unable to delete unreferenced datastream " + oldId, e);
+			}
+		}
+	}
+
+	@Override
+	public InputStream readDatastream(String datastreamId) {
+		Get g = new Get(Bytes.toBytes(datastreamId));
+		Result res;
+		try {
+			res = datastreamTable.get(g);
+		} catch (IOException e) {
+			throw new RuntimeException(e.getLocalizedMessage(), e);
+		}
+		ByteArrayInputStream stream=new ByteArrayInputStream(res.getValue(Bytes.toBytes(DATASTREAM_TABLE_COL_CONTENT), props.getQualifier()));
+		return stream;
 	}
 }

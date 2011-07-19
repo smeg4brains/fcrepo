@@ -37,6 +37,7 @@
 		<constructor-arg index="3" ref="org.fcrepo.server.storage.highlevel.hadoop.Properties" />
 		<constructor-arg index="4" ref="org.fcrepo.server.storage.highlevel.hadoop.HBaseAdminTool" />
 		<property name="translator" ref="org.fcrepo.server.storage.translation.DOTranslator" />
+		<property name="deploymentManager" ref="org.fcrepo.server.storage.distributed.DeploymentManager" />
 	</bean>
 
 	<bean id="org.fcrepo.server.storage.DOManager" class="org.fcrepo.server.storage.distributed.DistributedDOManager">
@@ -69,7 +70,7 @@
 		<constructor-arg index="4" ref="org.fcrepo.server.storage.highlevel.hadoop.HBaseAdminTool" />
 	</bean>
 
-	<bean id="org.fcrepo.server.storage.distributed.DeploymentManager" class="org.fcrepo.server.storage.distributed.EmptyDeploymentManager" />
+	<bean id="org.fcrepo.server.storage.distributed.DeploymentManager" class="org.fcrepo.server.storage.distributed.HBaseDeploymentManager" />
 	
 	<bean id="org.fcrepo.server.storage.highlevel.hadoop.HBaseAdminTool" class="org.fcrepo.server.storage.highlevel.hadoop.HBaseAdminTool">
 		<constructor-arg index="0" ref="org.fcrepo.server.storage.highlevel.hadoop.Properties" />

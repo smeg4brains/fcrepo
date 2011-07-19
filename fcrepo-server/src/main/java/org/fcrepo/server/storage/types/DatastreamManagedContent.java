@@ -24,6 +24,7 @@ import org.fcrepo.server.errors.StreamIOException;
 import org.fcrepo.server.errors.ValidationException;
 import org.fcrepo.server.storage.ContentManagerParams;
 import org.fcrepo.server.storage.ExternalContentManager;
+import org.fcrepo.server.storage.highlevel.HighlevelStorage;
 import org.fcrepo.server.storage.lowlevel.ILowlevelStorage;
 import org.fcrepo.server.utilities.StreamUtility;
 import org.fcrepo.server.validation.ValidationUtility;
@@ -50,13 +51,14 @@ public class DatastreamManagedContent
 
     public static final String UPLOADED_SCHEME = "uploaded://";
 
-    private static ILowlevelStorage s_llstore;
 
     private static Server m_server;
 
     private static ExternalContentManager s_ecm;
 
     private static File m_tempUploadDir;
+    
+    private HighlevelStorage hlStore;
 
     public int DSMDClass = 0;
 
@@ -70,18 +72,11 @@ public class DatastreamManagedContent
         return ds;
     }
 
-    private ILowlevelStorage getLLStore() throws Exception {
-        if (s_llstore == null) {
-            try {
-                s_llstore =
-                        (ILowlevelStorage) getServer()
-                                .getModule("org.fcrepo.server.storage.lowlevel.ILowlevelStorage");
-            } catch (InitializationException ie) {
-                throw new Exception("Unable to get LLStore Module: "
-                        + ie.getMessage(), ie);
-            }
-        }
-        return s_llstore;
+    private HighlevelStorage getHighlevelStorage() throws Exception{
+    	if (hlStore == null){
+    		hlStore=(HighlevelStorage) getServer().getModule("org.fcrepo.server.storage.highlevel.HighlevelStorage");
+    	}
+    	return hlStore;
     }
     /**
      * Get the location for storing temporary uploaded files (not for general temporary files)
@@ -184,7 +179,7 @@ public class DatastreamManagedContent
                 } catch(ValidationException e) {
                     // At this point, assume it's an internal id
                     // (e.g. demo:foo+DS1+DS1.0)
-                    return getLLStore().retrieveDatastream(DSLocation);
+                	return getHighlevelStorage().readDatastream(DatastreamID);
                 }
             }
         } catch (Throwable th) {

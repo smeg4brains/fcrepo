@@ -791,6 +791,11 @@
       <artifactId>owlapi</artifactId>
       <version>3.0.0-patched</version>
     </dependency>
-    
+
+    <dependency>
+    	<groupId>org.fcrepo</groupId>
+    	<artifactId>fcrepo-hlstore</artifactId>
+    	<version>3.5-SNAPSHOT</version>
+    </dependency>
   </dependencies>
 </project>
